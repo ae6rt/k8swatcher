@@ -65,9 +65,10 @@ func main() {
 				continue
 			}
 
-			if event.Type == "ADDED" {
+			switch event.Type {
+			case "ADDED":
 				for _, c := range event.Object.Spec.Containers {
-					if len(c.Ports) > 1 || c.Ports[0].Name != "server-port" {
+					if len(c.Ports) != 1 || c.Ports[0].Name != "server-port" {
 						continue
 					}
 
