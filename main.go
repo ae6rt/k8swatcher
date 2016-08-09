@@ -89,7 +89,7 @@ func main() {
 					} else {
 						scheme = "http"
 					}
-					log.Printf("would register %s//:%s:%d\n", scheme, event.Object.Status.PodIP, port.ContainerPort)
+					log.Printf("would register %s -> %s//:%s:%d\n", event.Object.Metadata.Labels["service-name"], scheme, event.Object.Status.PodIP, port.ContainerPort)
 				}
 			}
 		}
@@ -120,7 +120,10 @@ func main() {
 type Event struct {
 	Type   string `json:"type"`
 	Object struct {
-		Kind string `json:"kind"`
+		Kind     string `json:"kind"`
+		Metadata struct {
+			Labels map[string]string `json:"labels"`
+		} `json:"metadata"`
 		Spec struct {
 			Containers []struct {
 				Name  string `json:"name"`
