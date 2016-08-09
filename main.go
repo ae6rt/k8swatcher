@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"io/ioutil"
 	"log"
@@ -35,7 +36,7 @@ func main() {
 	dialer := websocket.DefaultDialer
 	dialer.TLSClientConfig = &tls.Config{RootCAs: certs}
 
-	u, _ := url.Parse("wss://" + *addr + "/api/v1/watch/pods?watch=true")
+	u, _ := url.Parse("wss://" + *addr + "/api/v1/watch/pods?watch=true&labelSelector=type=microservice")
 	log.Printf("connecting to %s", u.String())
 
 	c, resp, err := dialer.Dial(u.String(), http.Header{
@@ -58,7 +59,39 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			log.Printf("recv: %s", message)
+			var event Event
+			if err := json.Unmarshal(message, &event); err != nil {
+				log.Println(err)
+				continue
+			}
+
+			if event.Type == "ADDED" {
+				for _, c := range event.Object.Spec.Containers {
+					if len(c.Ports) > 1 {
+						continue
+					}
+					port := c.Ports[0]
+					if port.Name != "server-port" {
+						continue
+					}
+
+					var https bool
+					for _, env := range c.Environment {
+						if env.Name == "KEYSTORE" {
+							https = true
+							break
+						}
+					}
+
+					var scheme string
+					if https {
+						scheme = "https"
+					} else {
+						scheme = "http"
+					}
+					log.Printf("would register %s//:%s:%d\n", scheme, event.Object.Status.PodIP, port.ContainerPort)
+				}
+			}
 		}
 	}()
 
@@ -68,8 +101,7 @@ func main() {
 		select {
 		case <-interrupt:
 			log.Println("interrupt")
-			// To cleanly close a connection, a client should send a close
-			// frame and wait for the server to close the connection.
+			// To cleanly close a connection, a client should send a close frame and wait for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
@@ -83,4 +115,31 @@ func main() {
 			return
 		}
 	}
+}
+
+type Event struct {
+	Type   string `json:"type"`
+	Object struct {
+		Kind string `json:"kind"`
+		Spec struct {
+			Containers []struct {
+				Name  string `json:"name"`
+				Image string `json:"image"`
+				Ports []struct {
+					Name          string `json:"name"`
+					ContainerPort int    `json:"containerPort"`
+					Protocol      string `json:"protocol"`
+				} `json:"ports"`
+				Environment []struct {
+					Name  string `json:"name"`
+					Value string `json:"value"`
+				} `json:env"`
+			} `json:"containers"`
+		} `json:"spec"`
+		Status struct {
+			Phase  string `json:"phase"`
+			PodIP  string `json:"podIP"`
+			HostIP string `json:"hostIP"`
+		} `json:"status"`
+	} `json:"object"`
 }
