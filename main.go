@@ -25,12 +25,6 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-
-	u, _ := url.Parse("wss://" + *addr + "/api/v1/watch/pods?watch=true")
-	log.Printf("connecting to %s", u.String())
-
 	certs := x509.NewCertPool()
 	data, err := ioutil.ReadFile(*caCert)
 	if err != nil {
@@ -40,6 +34,10 @@ func main() {
 
 	dialer := websocket.DefaultDialer
 	dialer.TLSClientConfig = &tls.Config{RootCAs: certs}
+
+	u, _ := url.Parse("wss://" + *addr + "/api/v1/watch/pods?watch=true")
+	log.Printf("connecting to %s", u.String())
+
 	c, resp, err := dialer.Dial(u.String(), http.Header{
 		"Origin":        []string{"https://" + *addr},
 		"Authorization": []string{"Basic " + base64.StdEncoding.EncodeToString([]byte(*username+":"+*password))},
@@ -64,6 +62,8 @@ func main() {
 		}
 	}()
 
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
 	for {
 		select {
 		case <-interrupt:
