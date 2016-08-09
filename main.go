@@ -57,7 +57,7 @@ func main() {
 			_, message, err := c.ReadMessage()
 			if err != nil {
 				log.Println("read:", err)
-				return
+				continue
 			}
 			var event Event
 			if err := json.Unmarshal(message, &event); err != nil {
@@ -67,29 +67,19 @@ func main() {
 
 			if event.Type == "ADDED" {
 				for _, c := range event.Object.Spec.Containers {
-					if len(c.Ports) > 1 {
-						continue
-					}
-					port := c.Ports[0]
-					if port.Name != "server-port" {
+					if len(c.Ports) > 1 || c.Ports[0].Name != "server-port" {
 						continue
 					}
 
-					var https bool
+					scheme := "http"
 					for _, env := range c.Environment {
 						if env.Name == "KEYSTORE" {
-							https = true
+							scheme = "https"
 							break
 						}
 					}
 
-					var scheme string
-					if https {
-						scheme = "https"
-					} else {
-						scheme = "http"
-					}
-					log.Printf("would register %s -> %s//:%s:%d\n", event.Object.Metadata.Labels["service-name"], scheme, event.Object.Status.PodIP, port.ContainerPort)
+					log.Printf("would register %s -> %s://%s:%d\n", event.Object.Metadata.Labels["service-name"], scheme, event.Object.Status.PodIP, c.Ports[0].ContainerPort)
 				}
 			}
 		}
