@@ -68,7 +68,14 @@ func main() {
 			switch event.Type {
 			case "ADDED":
 				for _, c := range event.Object.Spec.Containers {
-					if len(c.Ports) != 1 || c.Ports[0].Name != "server-port" {
+					var port int
+					for _, p := range c.Ports {
+						if p.Name == "server-port" {
+							port = p.ContainerPort
+							break
+						}
+					}
+					if port == 0 {
 						continue
 					}
 
@@ -108,6 +115,7 @@ func main() {
 	}
 }
 
+// Event models a single Kubernetes pod event.
 type Event struct {
 	Type   string `json:"type"`
 	Object struct {
@@ -127,7 +135,7 @@ type Event struct {
 				Environment []struct {
 					Name  string `json:"name"`
 					Value string `json:"value"`
-				} `json:env"`
+				} `json:"env"`
 			} `json:"containers"`
 		} `json:"spec"`
 		Status struct {
